@@ -35,16 +35,24 @@ jobs:
           next=$((current + 1))
           echo "$next" > counter.txt
 
-      - name: Warn if AUTOMATION_TOKEN is missing
-        if: ${{ secrets.AUTOMATION_TOKEN == '' }}
+      - name: Select auth mode
+        id: auth
+        env:
+          AUTOMATION_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
         run: |
-          echo "::warning::AUTOMATION_TOKEN is not set. Falling back to GITHUB_TOKEN may prevent downstream workflow triggers."
+          if [ -n "$AUTOMATION_TOKEN" ]; then
+            echo "use_automation_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use_automation_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::AUTOMATION_TOKEN is not set. Falling back to GITHUB_TOKEN may prevent downstream workflow triggers."
+          fi
 
-      - name: Create pull request
-        id: cpr
+      - name: Create pull request with AUTOMATION_TOKEN
+        if: steps.auth.outputs.use_automation_token == 'true'
+        id: cpr_automation
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.AUTOMATION_TOKEN }}
           commit-message: "chore(counter): increment by 1"
           title: "chore(counter): daily increment"
           body: |
@@ -57,13 +65,42 @@ jobs:
           add-paths: |
             counter.txt
 
-      - name: Merge PR
-        if: steps.cpr.outputs.pull-request-number != ''
+      - name: Create pull request with GITHUB_TOKEN
+        if: steps.auth.outputs.use_automation_token != 'true'
+        id: cpr_default
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(counter): increment by 1"
+          title: "chore(counter): daily increment"
+          body: |
+            Automated daily counter increment.
+          branch: "automation/daily-counter-increment"
+          base: main
+          labels: |
+            minor
+          delete-branch: true
+          add-paths: |
+            counter.txt
+
+      - name: Merge PR with AUTOMATION_TOKEN
+        if: steps.auth.outputs.use_automation_token == 'true' && steps.cpr_automation.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
         run: |
           gh pr merge \
             --repo "${{ github.repository }}" \
             --squash \
             --delete-branch \
-            "${{ steps.cpr.outputs.pull-request-number }}"
+            "${{ steps.cpr_automation.outputs.pull-request-number }}"
+
+      - name: Merge PR with GITHUB_TOKEN
+        if: steps.auth.outputs.use_automation_token != 'true' && steps.cpr_default.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge \
+            --repo "${{ github.repository }}" \
+            --squash \
+            --delete-branch \
+            "${{ steps.cpr_default.outputs.pull-request-number }}"
