@@ -1,0 +1,59 @@
+name: Daily Counter Increment
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  increment-and-merge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Increment counter
+        run: |
+          if [ ! -f counter.txt ]; then
+            echo "counter.txt not found" >&2
+            exit 1
+          fi
+
+          current="$(tr -d '[:space:]' < counter.txt)"
+          if ! [[ "$current" =~ ^[0-9]+$ ]]; then
+            echo "counter.txt must contain only an integer" >&2
+            exit 1
+          fi
+
+          next=$((current + 1))
+          echo "$next" > counter.txt
+
+      - name: Create pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(counter): increment by 1"
+          title: "chore(counter): daily increment"
+          body: |
+            Automated daily counter increment.
+          branch: "automation/daily-counter-increment"
+          base: main
+          delete-branch: true
+          add-paths: |
+            counter.txt
+
+      - name: Enable auto-merge for PR
+        if: steps.cpr.outputs.pull-request-number != ''
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash

@@ -1,0 +1,23 @@
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run semantic release action
+        uses: dnogu/semantic-release-action@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
