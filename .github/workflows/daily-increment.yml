@@ -52,10 +52,13 @@ jobs:
           add-paths: |
             counter.txt
 
-      - name: Enable auto-merge for PR
+      - name: Merge PR
         if: steps.cpr.outputs.pull-request-number != ''
-        uses: peter-evans/enable-pull-request-automerge@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
-          merge-method: squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge \
+            --repo "${{ github.repository }}" \
+            --squash \
+            --delete-branch \
+            "${{ steps.cpr.outputs.pull-request-number }}"
