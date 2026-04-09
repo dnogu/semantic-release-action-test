@@ -35,11 +35,16 @@ jobs:
           next=$((current + 1))
           echo "$next" > counter.txt
 
+      - name: Warn if AUTOMATION_TOKEN is missing
+        if: ${{ secrets.AUTOMATION_TOKEN == '' }}
+        run: |
+          echo "::warning::AUTOMATION_TOKEN is not set. Falling back to GITHUB_TOKEN may prevent downstream workflow triggers."
+
       - name: Create pull request
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore(counter): increment by 1"
           title: "chore(counter): daily increment"
           body: |
@@ -55,7 +60,7 @@ jobs:
       - name: Merge PR
         if: steps.cpr.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           gh pr merge \
             --repo "${{ github.repository }}" \
