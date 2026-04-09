@@ -46,6 +46,8 @@ jobs:
             Automated daily counter increment.
           branch: "automation/daily-counter-increment"
           base: main
+          labels: |
+            minor
           delete-branch: true
           add-paths: |
             counter.txt
